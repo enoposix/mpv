@@ -37,7 +37,8 @@
 extern const struct ao_driver audio_out_oss;
 extern const struct ao_driver audio_out_audiounit;
 extern const struct ao_driver audio_out_coreaudio;
-extern const struct ao_driver audio_out_coreaudio_exclusive;
+//extern const struct ao_driver audio_out_coreaudio_exclusive;
+extern const struct ao_driver audio_out_coreaudio_audiotoolbox;
 extern const struct ao_driver audio_out_rsound;
 extern const struct ao_driver audio_out_sndio;
 extern const struct ao_driver audio_out_pulse;
@@ -89,7 +90,8 @@ static const struct ao_driver * const audio_out_drivers[] = {
 #endif
     &audio_out_null,
 #if HAVE_COREAUDIO
-    &audio_out_coreaudio_exclusive,
+//    &audio_out_coreaudio_exclusive,
+    &audio_out_coreaudio_audiotoolbox,
 #endif
     &audio_out_pcm,
 #if HAVE_ENCODING
