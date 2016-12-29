@@ -33,10 +33,12 @@
 int ca_fmt_from_af(int format)
 {
     int out = 0;
-    if(af_fmt_is_float(format))
+    if (af_fmt_is_float(format))
         out |= kAudioFormatFlagIsFloat;
-    else if(!af_fmt_is_unsigned(format))
+    else if (!af_fmt_is_unsigned(format))
         out |= kAudioFormatFlagIsSignedInteger;
+    if (!af_fmt_is_planar(format))
+        out |= kAudioFormatFlagIsPacked;
     return out;
 }
 

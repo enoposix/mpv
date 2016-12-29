@@ -48,7 +48,7 @@ struct priv
     bool paused;
 };
 
-static OSStatus audio_callback(void *userdata, AudioUnitRenderActionFlags *ioActionFlags,
+static OSStatus callback(void *userdata, AudioUnitRenderActionFlags *ioActionFlags,
                                const AudioTimeStamp *inTimeStamp, uint32_t inBusNumber,
                                uint32_t inNumberFrames, AudioBufferList *ioData)
 {
@@ -60,8 +60,6 @@ static OSStatus audio_callback(void *userdata, AudioUnitRenderActionFlags *ioAct
         direct[i] = ioData->mBuffers[i].mData;
 
     ao_read_data(ao, direct, inNumberFrames, mp_time_us() + 1UL /*needs change*/);
-    return noErr;
-
     return 0;
 }
 
@@ -76,9 +74,10 @@ static void uninit(struct ao *ao)
 static int init(struct ao *ao)
 {
     struct priv *priv = ao->priv;
-    AudioStreamBasicDescription fmt_desc;
-    AudioComponent comp;
-    int fmt_bytes;
+    AURenderCallbackStruct audio_callback = {0};
+    AudioStreamBasicDescription fmt_desc = {0};
+    AudioComponent comp = {0};
+    int fmt_bytes, err = 0;
 
 #if OS_IOS
     AVAudioSessionPortDescription *sessionPort = nil;
@@ -105,18 +104,18 @@ static int init(struct ao *ao)
 
     comp = AudioComponentFindNext(NULL, &comp_desc);
     if (!comp) {
-        MP_ERR(ao, "Unable to find default audio device.\n");
+        MP_ERR(ao, "Unable to find default audio device: %s.\n", osstatus_to_str(err));
         return -1;
     }
 
-    if (AudioComponentInstanceNew(comp, &priv->unit)) {
-        MP_ERR(ao, "Unable to open default audio device.\n");
+    if ((err = AudioComponentInstanceNew(comp, &priv->unit))) {
+        MP_ERR(ao, "Unable to open default audio device: %s.\n", osstatus_to_str(err));
         return -1;
     }
     priv->paused = 1;
 
-    if (AudioUnitInitialize(priv->unit)) {
-        MP_ERR(ao, "Unable to initialize audio unit instance\n");
+    if ((err = AudioUnitInitialize(priv->unit))) {
+        MP_ERR(ao, "Unable to initialize audio unit instance: %s.\n", osstatus_to_str(err));
         return -1;
     }
 
@@ -125,20 +124,22 @@ static int init(struct ao *ao)
         return -1;
     }
 
-    if (AudioUnitSetProperty(priv->unit, kAudioUnitProperty_StreamFormat,
-                             kAudioUnitScope_Input, 0, &fmt_desc, sizeof(fmt_desc))) {
-        MP_ERR(ao, "Unable to set audio unit input property.\n");
+    if ((err = AudioUnitSetProperty(priv->unit, kAudioUnitProperty_StreamFormat,
+                                    kAudioUnitScope_Input, 0, &fmt_desc, sizeof(fmt_desc)))) {
+        MP_ERR(ao, "Unable to set audio unit input property: %s.\n", osstatus_to_str(err));
         return -1;
     }
 
-    //if (AudioUnitSetProperty(priv->unit, kAudioUnitProperty_SetRenderCallback,
-    //                         kAudioUnitScope_Input, 0, callback, sizeof(callback))) {
-    //    MP_ERR(ao, "Unable to attach an IOProc to the selected audio unit.\n");
-    //    return -1;
-    //}
+    audio_callback.inputProc = callback;
+    audio_callback.inputProcRefCon = ao;
+    if ((err = AudioUnitSetProperty(priv->unit, kAudioUnitProperty_SetRenderCallback,
+                                    kAudioUnitScope_Input, 0, &audio_callback, sizeof(audio_callback)))) {
+        MP_ERR(ao, "Unable to set internal callback loop: %s.\n", osstatus_to_str(err));
+        return -1;
+    }
 
-    if (AudioOutputUnitStart(priv->unit)) {
-        MP_ERR(ao, "Unable to start audio unit.\n");
+    if ((err = AudioOutputUnitStart(priv->unit))) {
+        MP_ERR(ao, "Unable to start audio unit: %s.\n", osstatus_to_str(err));
         return -1;
     }
     return 1;
@@ -162,9 +163,9 @@ static void resume(struct ao *ao)
     priv->paused = 0;
 }
 
-const struct ao_driver audio_out_coreaudio = {
-    .description = "CoreAudio",
-    .name      = "coreaudio",
+const struct ao_driver audio_out_coreaudio_audiounit = {
+    .description = "CoreAudio (AudioUnit)",
+    .name      = "coreaudio_audiounit",
     .init      = init,
     .uninit    = uninit,
     .reset     = reset,
