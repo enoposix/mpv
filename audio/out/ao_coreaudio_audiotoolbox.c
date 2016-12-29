@@ -60,8 +60,6 @@ static void callback(void *userdata, AudioQueueRef queue, AudioQueueBufferRef bu
 
     samples = buffer->mAudioDataBytesCapacity / (ao->sstride * ao->num_planes);
     samples = ao_read_data(ao, buffers, samples, mp_time_us() + 1UL);
-    //for (int i = 0; i < ao->num_planes; i++)
-    //    memmove(buffer->mAudioData + i * samples * af_fmt_to_bytes(ao->format), buffers[i], samples * af_fmt_to_bytes(ao->format));
 
     if (samples) {
         buffer->mAudioDataByteSize = af_fmt_is_planar(ao->format) ?
@@ -85,15 +83,34 @@ static int init(struct ao *ao)
     struct priv *priv = ao->priv;
     AudioStreamBasicDescription fmt_desc = {0};
     int err = 0;
-    ao->format = AF_FORMAT_S32;
-    //AudioSessionInitialize(NULL, NULL, nil, (void*)(self));
+
+    /* TODO: support planar */
+    switch (ao->format) {
+    case AF_FORMAT_U8P:
+        ao->format = AF_FORMAT_U8;
+        break;
+    case AF_FORMAT_S16P:
+        ao->format = AF_FORMAT_S16;
+        break;
+    case AF_FORMAT_S32P:
+        ao->format = AF_FORMAT_S32;
+        break;
+    case AF_FORMAT_FLOATP:
+        ao->format = AF_FORMAT_FLOAT;
+        break;
+    case AF_FORMAT_DOUBLEP:
+        ao->format = AF_FORMAT_DOUBLE;
+        break;
+    }
+
     ca_absd_from_ao(ao, &fmt_desc);
 
-    err = AudioQueueNewOutput(&fmt_desc, callback, ao, NULL, NULL, 0, &priv->queue);
-    if (err) {
+    if ((err = AudioQueueNewOutput(&fmt_desc, callback, ao, NULL, NULL, 0, &priv->queue))) {
         MP_ERR(ao, "Unable to create new audio output: %s\n", osstatus_to_str(err));
         return -1;
+
     }
+
     int bufferByteSize = 4800;//ao->samplerate * af_fmt_to_bytes(ao->format) * ao->channels.num;
     for (int i = 0; i < 3; i++) {
         err = AudioQueueAllocateBuffer(priv->queue, bufferByteSize, &priv->buffers[i]);
@@ -104,8 +121,6 @@ static int init(struct ao *ao)
         //callback((void*)ao, priv->queue, priv->buffers[i]);
         memset(priv->buffers[i]->mAudioData, 0, priv->buffers[i]->mAudioDataBytesCapacity);
         priv->buffers[i]->mAudioDataByteSize = priv->buffers[i]->mAudioDataBytesCapacity;
-        //for (int j = 0; j < bufferByteSize; j++)
-        //    buffers[i][j] = char()
         err = AudioQueueEnqueueBuffer(priv->queue, priv->buffers[i], 0, NULL);
         if (err) {
             MP_ERR(ao, "Unable to enqueue AudioQueue buffer: %s\n", osstatus_to_str(err));

@@ -37,8 +37,9 @@ int ca_fmt_from_af(int format)
         out |= kAudioFormatFlagIsFloat;
     else if (!af_fmt_is_unsigned(format))
         out |= kAudioFormatFlagIsSignedInteger;
-    if (!af_fmt_is_planar(format))
-        out |= kAudioFormatFlagIsPacked;
+    if (af_fmt_is_planar(format))
+        out |= kAudioFormatFlagIsNonInterleaved;
+//        out |= kAudioFormatFlagIsPacked;
     return out;
 }
 
@@ -56,8 +57,10 @@ int ca_absd_from_ao(struct ao *ao, AudioStreamBasicDescription *asbd)
     asbd->mFramesPerPacket   = FRAMES_PER_PACKET;
     asbd->mChannelsPerFrame  = ao->channels.num;
     asbd->mBitsPerChannel    = fmt_bytes * 8;
-    asbd->mBytesPerFrame     = ao->channels.num * fmt_bytes;
-    asbd->mBytesPerPacket    = ao->channels.num * fmt_bytes * FRAMES_PER_PACKET;
+    asbd->mBytesPerFrame     = ((asbd->mFormatFlags & kAudioFormatFlagIsNonInterleaved) ?
+                                1 : ao->channels.num) * fmt_bytes;
+    asbd->mBytesPerPacket    =((asbd->mFormatFlags & kAudioFormatFlagIsNonInterleaved) ?
+                                1 : ao->channels.num) * fmt_bytes * FRAMES_PER_PACKET;
 
     return 0;
 }
