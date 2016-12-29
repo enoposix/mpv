@@ -58,10 +58,13 @@ static void callback(void *userdata, AudioQueueRef queue, AudioQueueBufferRef bu
     for (int i = 0; i < ao->num_planes; i++)
         buffers[i] = buffer->mAudioData + i * buffer->mAudioDataBytesCapacity / ao->num_planes;
 
-    samples = buffer->mAudioDataBytesCapacity / (ao->sstride * ao->channels.num);
+    samples = buffer->mAudioDataBytesCapacity / (ao->sstride * ao->num_planes);
     samples = ao_read_data(ao, buffers, samples, mp_time_us() + 1UL);
+    //for (int i = 0; i < ao->num_planes; i++)
+    //    memmove(buffer->mAudioData + i * samples * af_fmt_to_bytes(ao->format), buffers[i], samples * af_fmt_to_bytes(ao->format));
+
     if (samples) {
-        buffer->mAudioDataByteSize = samples * af_fmt_to_bytes(ao->format);
+        buffer->mAudioDataByteSize = samples * ao->num_planes * af_fmt_to_bytes(ao->format);
         if ((err = AudioQueueEnqueueBuffer(queue, buffer, 0, nil))) {
             MP_ERR(ao, "Unable to load audio into AudioToolbox: %s\n", osstatus_to_str(err));
         }
@@ -80,7 +83,7 @@ static int init(struct ao *ao)
     struct priv *priv = ao->priv;
     AudioStreamBasicDescription fmt_desc = {0};
     int err = 0;
-
+    ao->format = AF_FORMAT_S32;
     //AudioSessionInitialize(NULL, NULL, nil, (void*)(self));
     ca_absd_from_ao(ao, &fmt_desc);
 
@@ -89,7 +92,7 @@ static int init(struct ao *ao)
         MP_ERR(ao, "Unable to create new audio output: %s\n", osstatus_to_str(err));
         return -1;
     }
-    int bufferByteSize = ao->samplerate * af_fmt_to_bytes(ao->format) * ao->channels.num;
+    int bufferByteSize = 4800;//ao->samplerate * af_fmt_to_bytes(ao->format) * ao->channels.num;
     for (int i = 0; i < 3; i++) {
         err = AudioQueueAllocateBuffer(priv->queue, bufferByteSize, &priv->buffers[i]);
         if (err) {
