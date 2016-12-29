@@ -64,7 +64,9 @@ static void callback(void *userdata, AudioQueueRef queue, AudioQueueBufferRef bu
     //    memmove(buffer->mAudioData + i * samples * af_fmt_to_bytes(ao->format), buffers[i], samples * af_fmt_to_bytes(ao->format));
 
     if (samples) {
-        buffer->mAudioDataByteSize = samples * ao->num_planes * af_fmt_to_bytes(ao->format);
+        buffer->mAudioDataByteSize = af_fmt_is_planar(ao->format) ?
+                                     samples * ao->num_planes * af_fmt_to_bytes(ao->format) :
+                                     samples * ao->sstride;
         if ((err = AudioQueueEnqueueBuffer(queue, buffer, 0, nil))) {
             MP_ERR(ao, "Unable to load audio into AudioToolbox: %s\n", osstatus_to_str(err));
         }
